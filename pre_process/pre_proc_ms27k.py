@@ -88,6 +88,116 @@ def control_mstdt_split(raw_ms27k_path, split_path):
         print()
 
 
+###################################################################
+#     Swap entity tags to the sentences and get sent entities     #
+###################################################################
+def swap_labs_ents(sent_toks, sent_labs):
+    """
+    Swap the entity labels into the sentence and get the entities out of the
+    sentence.
+    :param sent_toks: list(str)
+    :param sent_labs: list(str)
+    :return:
+    """
+    assert(len(sent_toks) == len(sent_labs))
+    ent_swapped_sent, sent_ents = [], []
+    cur_lab = ''
+    # Fix the predicted labels for obvious mistakes instead of trying to crazily
+    # handle for it below. Fix stray I-tags without B-tags.
+    inlab = False
+    for i, lab in enumerate(sent_labs):
+        if lab[0] == 'O':
+            inlab = False
+        if lab[0] == 'B':
+            inlab = True
+        if lab[0] == 'I' and inlab == True:
+            continue
+        elif lab[0] == 'I' and inlab == False:
+            sent_labs[i] = 'B' + lab[1:]
+            inlab = True
+
+    for tok, lab in zip(sent_toks, sent_labs):
+        if lab == 'O':
+            ent_swapped_sent.append(tok)
+        # You saw a beginning, so add ent to the ents and place label into
+        # sentence.
+        elif lab[0] == 'B':
+            cur_lab = lab[2:]
+            ent_swapped_sent.append(cur_lab + '_netag')
+            sent_ents.append(tok)
+        # You see a "in", if its the same current label concat it with the B ent
+        # token and skip any addition to the sentence.
+        elif lab[0] == 'I' and lab[2:] == cur_lab:
+            sent_ents[-1] = (sent_ents[-1] + ' ' + tok).strip()
+    return ent_swapped_sent, sent_ents
+
+
+def process_ms27k_doc(data_dict):
+    """
+    For a given document, get the sentences which have an operation, replace the
+    entities in the sentence with entitiy tags and get the entities.
+    :param data_dict: dict('paper_doi': str, 'sents': list(str),
+        'sents_toks': list(list(str)), 'sents_labs': list(list(str)))
+    :return:
+    """
+    ent_swapped_sents = []
+    sents_ents = []
+    sents_toks = data_dict['sents_toks']
+    sents_labs = data_dict['sents_labs']
+    assert (len(sents_toks) == len(sents_labs))
+
+    doi_str = data_dict['paper_doi']
+    for sent_toks, sent_labs in zip(sents_toks, sents_labs):
+        # Look at only operation sentences. This might be a bad judgement call.
+        if ('B-operation' in sent_labs) or ('I-operation' in sent_labs):
+            ent_swapped_sent, sent_ents = \
+                swap_labs_ents(sent_toks=sent_toks, sent_labs=sent_labs)
+            ent_swapped_sents.append(ent_swapped_sent)
+            sents_ents.append(sent_ents)
+    return doi_str, ent_swapped_sents, sents_ents
+
+
+def process_ms27k_splits(split_path, out_path):
+    """
+    Make the splits into sentence level examples suited to the naryus task.
+    :param split_path:
+    :param out_path:
+    :return:
+    """
+    for split_str in ['dev', 'test', 'train']:
+        in_split_fname = os.path.join(split_path, split_str) + '.json'
+        out_split_fname = os.path.join(out_path, split_str) + '_ent_added.json'
+        out_split_file = codecs.open(out_split_fname, u'w', u'utf-8')
+        print('Processing: {:s}'.format(in_split_fname))
+        start = time.time()
+        sents_count = 0
+        ents_count = 0
+        with codecs.open(in_split_fname, 'r', 'utf-8') as fp:
+            for data_dict in du.read_perline_json(fp):
+                doi_str, ent_swapped_sents, sents_ents = process_ms27k_doc(data_dict)
+                for sent_id, (ent_swapped_sent, sent_ents) in enumerate(zip(ent_swapped_sents, sents_ents)):
+                    out_dict = {
+                        'text': ' '.join(ent_swapped_sent),
+                        'ents': sent_ents,
+                        'doc_id': '{:s}_{:d}'.format(doi_str, sent_id)
+                    }
+                    sents_count += 1
+                    ents_count += len(sent_ents)
+                    proc_jsons = json.dumps(out_dict, ensure_ascii=False)
+                    out_split_file.write(proc_jsons + '\n')
+                if sents_count % 1000 == 0:
+                    print('Cur sents count: {:d}; Average ents per sent: {:f}'.
+                          format(sents_count,float(ents_count) / sents_count))
+            print('Total sents count: {:d}; Average ents per sent: {:f}'.
+                  format(sents_count, float(ents_count) / sents_count))
+            out_split_file.close()
+            end = time.time()
+            print('Wrote: {:s}'.format(out_split_fname))
+            print('Took: {:.4f}s; Per sentence: {:.4f}s'.
+                  format(end - start, float(end - start) / sents_count))
+            print()
+
+
 def main():
     """
     Parse command line arguments and call all the above routines.
@@ -124,10 +234,22 @@ def main():
     elif cl_args.subcommand == 'naryus':
         # Dont want to overwrite existing files by same name. :/
         assert (cl_args.in_path != cl_args.out_path)
-        pass
+        process_ms27k_splits(split_path=cl_args.in_path,
+                             out_path=cl_args.out_path)
     else:
         sys.stderr.write('Unknown action.\n')
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1] != 'test':
+        main()
+    else:
+        sent_toks = ["Lead", "titanate", "precursor", "gels", "were",
+                     "prepared", "using", "a", "diol", "sol", "-", "gel",
+                     "system", "."]
+        sent_labs = ["I-material", "I-material", "B-descriptor", "O", "O",
+                     "O", "O", "O", "O", "I-meta", "I-meta", "I-meta",
+                     "I-meta", "O"]
+        a, b = swap_labs_ents(sent_toks, sent_labs)
+        print(a)
+        print(b)
