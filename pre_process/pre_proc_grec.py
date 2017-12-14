@@ -66,7 +66,7 @@ def form_sixth_rel(dataset_path, out_path):
         rel_file = codecs.open(rel_fname, u'w', u'utf-8')
         with codecs.open(fname, 'r', 'utf-8') as fp:
             rel_pos, rel_neg = 0, 0
-            for data_json in du.read_json(fp):
+            for data_json in du.read_perline_json(fp):
                 holds = make_judgement(data_json, rel_type)
                 if holds:
                     rel_pos += 1
@@ -109,18 +109,6 @@ def form_sixth_rel(dataset_path, out_path):
 ############################################
 #       Form the train/dev/test splits     #
 ############################################
-def get_rand_indices(maxnum):
-    """
-    Return a permutation of the [0:maxnum-1] range.
-    :return:
-    """
-    indices = range(maxnum)
-    # Get random permutation of the indices but control for randomness.
-    # https://stackoverflow.com/a/19307027/3262406
-    random.shuffle(indices, lambda: 0.4186)
-    return indices
-
-
 def make_rel_splits(rel_examples):
     """
     For any given relation make a train, dev, test split.
@@ -129,7 +117,7 @@ def make_rel_splits(rel_examples):
     """
     num_examples = len(rel_examples)
     # Get a permutation of the [0:num_examples-1] range.
-    indices = get_rand_indices(num_examples)
+    indices = du.get_rand_indices(num_examples)
     train_i = indices[:int(0.8*num_examples)]
     dev_i = indices[int(0.8*num_examples): int(0.9*num_examples)]
     test_i = indices[int(0.9*num_examples):]
@@ -156,11 +144,11 @@ def make_tdt_split(rels_dict):
         dev.extend(rel_dev)
         test.extend(rel_test)
     # Shuffle each split.
-    indices = get_rand_indices(len(train))
+    indices = du.get_rand_indices(len(train))
     train = [train[i] for i in indices]
-    indices = get_rand_indices(len(dev))
+    indices = du.get_rand_indices(len(dev))
     dev = [dev[i] for i in indices]
-    indices = get_rand_indices(len(test))
+    indices = du.get_rand_indices(len(test))
     test = [test[i] for i in indices]
     return train, dev, test
 
@@ -175,7 +163,7 @@ def control_tdt_split(mentionfound_path, out_path):
     :return:
     """
     rels_dict = form_sixth_rel(dataset_path=mentionfound_path, out_path=out_path)
-    train, dev, test = make_tdt_split(rels_dict=rels_dict)
+    train, dev, test = make_dt_split(rels_dict=rels_dict)
     print('Train: {}; Dev: {}; Test: {}'.format(len(train), len(dev),
                                                 len(test)))
 
@@ -212,7 +200,7 @@ def process_splits_naryus(in_path, out_path):
         doc_count = 0
         sents_count = 0
         with codecs.open(in_split_fname, 'r', 'utf-8') as fp:
-            for data_dict in du.read_json(fp):
+            for data_dict in du.read_perline_json(fp):
                 text = data_dict['evidences'][0]['snippet']
                 if data_dict['int_mapped_rel'] in [4, 5]:
                     text, _ = ed_pat_1.subn(string=text, repl='\1')
@@ -256,7 +244,7 @@ def enttag_nary_splits(in_path):
         sents_count = 0
         ents_count = 0
         with codecs.open(in_split_fname, 'r', 'utf-8') as fp:
-            for data_dict in du.read_json(fp):
+            for data_dict in du.read_perline_json(fp):
                 text = data_dict['text']
                 proc_text = nlp(text)
                 # Find entities in the text and replace it with the entity type.
