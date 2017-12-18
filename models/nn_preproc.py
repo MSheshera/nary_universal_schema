@@ -21,7 +21,7 @@ def make_word2mse_dict(msew2v_dir):
     """
     word2mse = {}
     mse_file = os.path.join(msew2v_dir, 'msew2v.100d.txt')
-    out_mse_file = os.path.join(msew2v_dir, 'msew2v.100d.json')
+    out_mse_file = os.path.join(msew2v_dir, '100d.embed.json')
     if os.path.isfile(out_mse_file):
         print('File exists; Look into it manually.\n')
         sys.exit(1)
@@ -66,7 +66,7 @@ def make_word2glove_dict(glove_dir):
     """
     word2glove = {}
     glove_file = os.path.join(glove_dir, 'glove.6B.100d.txt')
-    out_glove_file = os.path.join(glove_dir, 'glove.6B.100d.json')
+    out_glove_file = os.path.join(glove_dir, '100d.embed.json')
     if os.path.isfile(out_glove_file):
         print('File exists; Look into it manually.\n')
         sys.exit(1)
