@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import sentslstm as slstm
 
 # Write unicode to stdout.
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
@@ -41,42 +40,41 @@ def read_json(json_file):
 def load_intmapped_data(int_mapped_path, use_toy):
     """
     Load the int mapped train, dev and test data from disk. Load a smaller
-    dataset use_toy is set.
+    dataset if use_toy is set.
     :param int_mapped_path:
     :param use_toy:
-    :return:
+    :return: train, dev, test, word2idx:
+        train/dev/test: dict('col_rel': list(list(str)),
+            'row_ent': list(list(str)), 'doc_ids':list(str))
+        word2ids: dict(str:int)
     """
     if use_toy:
         set_str = 'small'
     else:
         set_str = 'full'
     train_path = os.path.join(int_mapped_path,
-                              'train-im-{:s}.json'.format(set_str))
+                              'train_ent_added-im-{:s}.json'.format(set_str))
     with open(train_path) as fp:
-        X_train, y_train = json.load(fp)  # l of l of l, l
-    dev_path = os.path.join(int_mapped_path, 'dev-im-{:s}.json'.format(set_str))
+        col_rel_tr, row_ent_tr, doc_ids_tr = json.load(fp)  # l of l.
+
+    dev_path = os.path.join(int_mapped_path,
+                            'dev_ent_added-im-{:s}.json'.format(set_str))
     with open(dev_path) as fp:
-        X_dev, y_dev = json.load(fp)
-    test_path = os.path.join(int_mapped_path, 'test-im-{:s}.json'.format(set_str))
+        col_rel_dev, row_ent_dev, doc_ids_dev = json.load(fp)  # l of l.
+
+    test_path = os.path.join(int_mapped_path,
+                             'test_ent_added-im-{:s}.json'.format(set_str))
     with open(test_path) as fp:
-        X_test, y_test = json.load(fp)
-    map_path = os.path.join(int_mapped_path,
-                            'word2idx-{:s}.json'.format(set_str))
+        col_rel_te, row_ent_te, doc_ids_te = json.load(fp)  # l of l.
+
+    map_path = os.path.join(int_mapped_path, 'word2idx-{:s}.json'.format(set_str))
     with open(map_path) as fp:
         word2idx = json.load(fp)
 
-    return X_train, y_train, X_dev, y_dev, X_test, y_test, word2idx
-
-
-def restore_model(embedding_path, model_path, model_name, word2idx):
-    # TODO: Store and retrieve hyperparameters. --high-pri.
-    # Load model.
-    model_file = os.path.join(model_path, model_name)
-    model = slstm.SentsLSTM(word2idx, embedding_path, num_classes=6,
-                            num_layers=1, embedding_dim=200, hidden_dim=50,
-                            dropout=0.3)
-    model.load_state_dict(torch.load(model_file))
-    return model
+    train = {'col_rel': col_rel_tr, 'row_ent': row_ent_tr, 'doc_ids':doc_ids_tr}
+    dev = {'col_rel': col_rel_dev, 'row_ent': row_ent_dev, 'doc_ids': doc_ids_dev}
+    test = {'col_rel': col_rel_te, 'row_ent': row_ent_te, 'doc_ids': doc_ids_te}
+    return train, dev, test, word2idx
 
 
 def plot_train_hist(y_vals, checked_iters, fig_path, ylabel):
