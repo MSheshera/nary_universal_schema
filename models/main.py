@@ -24,11 +24,6 @@ def train_model(int_mapped_path, embedding_path, run_path, model_hparams,
     Read the int training and dev data, initialize and train the model.
     :return:
     """
-    # np.random.seed(4186)
-    # torch.manual_seed(4186)
-    # if torch.cuda.is_available():
-    #     torch.cuda.manual_seed(4186)
-
     # Load training and dev data.
     train, dev, test, word2idx = utils.load_intmapped_data(int_mapped_path,
                                                            use_toy)
@@ -73,11 +68,20 @@ def train_model(int_mapped_path, embedding_path, run_path, model_hparams,
     data['doc_ids_test'] = test['doc_ids']
     probs_train, probs_dev, probs_test = evaluate.make_predictions(
         data=data, batcher=mu.Batcher, model=model, result_path=run_path,
-        batch_size=128, write_preds=False)
+        batch_size=128, write_preds=True)
 
     print('train'); print(probs_train[:10]); print(train['doc_ids'][:10])
     print('dev'); print(probs_dev[:10]); print(dev['doc_ids'][:10])
     print('test'); print(probs_test[:10]); print(test['doc_ids'][:10])
+
+    # Save embeddings to disk.
+    if torch.cuda.is_available():
+        learnt_embedding = model.embeddings.cpu()
+        learnt_embedding = learnt_embedding.weight.data.numpy()
+    else:
+        learnt_embedding = model.embeddings.weight.data.numpy()
+    print('learnt embeddings shape: {}'.format(learnt_embedding.shape))
+    evaluate.write_embeddings(embeddings=learnt_embedding, run_path=run_path)
 
     # Save hyperparams to disk.
     run_info = {'model_hparams': model_hparams,
@@ -92,40 +96,47 @@ def run_saved_model(int_mapped_path, embedding_path, run_path, use_toy=True):
     :return:
     """
     # Load training and dev data.
-    X_train, y_train, X_dev, y_dev, X_test, y_test, word2idx = \
-        utils.load_intmapped_data(int_mapped_path, use_toy)
-    data = {'X_train': X_train,
-            'y_train': y_train,
-            'X_dev': X_dev,
-            'y_dev': y_dev}
+    train, dev, test, word2idx = utils.load_intmapped_data(int_mapped_path,
+                                                           use_toy)
+
+    data = {'col_train': train['col_rel'],
+            'row_train': train['row_ent'],
+            'col_dev': dev['col_rel'],
+            'row_dev': dev['row_ent']}
     # Load the hyperparams from disk.
     with codecs.open(os.path.join(run_path, 'run_info.json'), 'r', 'utf-8') as fp:
         run_info = json.load(fp)
         model_hparams = run_info['model_hparams']
     # Unpack args.
-    edim, hdim, dropp = model_hparams['edim'], model_hparams['hdim'], model_hparams['dropp']
+    hdim, dropp = model_hparams['hdim'], model_hparams['dropp']
     print('Model hyperparams:')
     pprint.pprint(model_hparams)
 
     # Initialize model.
-    model = slstm.SentsLSTM(word2idx, embedding_path, num_classes=6,
-                            num_layers=1, embedding_dim=edim, hidden_dim=hdim,
-                            dropout=dropp)
-    model_file = os.path.join(run_path, 'slstm_best.pt')
+    model = ncompus.NaryCompUSchema(word2idx, embedding_path, num_layers=1,
+                                    hidden_dim=hdim, dropout=dropp)
+    print(model)
+    model_file = os.path.join(run_path, 'ncompus_best.pt')
     model.load_state_dict(torch.load(model_file))
-    data['X_test'] = X_test
-    data['y_test'] = y_test
-    everything = evaluate.make_predictions(data=data, batcher=mu.Batcher,
-                                           model=model, result_path=run_path,
-                                           batch_size=128, write_preds=True)
-    y_test_true, y_test_preds, y_dev_true, y_dev_preds, \
-        y_train_true, y_train_preds = everything
-    for split, true, pred in [('test', y_test_true, y_test_preds),
-                              ('dev', y_dev_true, y_dev_preds),
-                              ('train', y_train_true, y_train_preds)]:
-        print(split)
-        evaluate.evaluate_preds(true, pred)
-    print('Run from: {:s}'.format(run_path))
+    # Evaluate on all the data; write predicted probs, write learnt embeddings.
+    data['col_test'] = test['col_rel']
+    data['row_test'] = test['row_ent']
+    # Add doc ids in.
+    data['doc_ids_train'] = train['doc_ids']
+    data['doc_ids_dev'] = dev['doc_ids']
+    data['doc_ids_test'] = test['doc_ids']
+    probs_train, probs_dev, probs_test = evaluate.make_predictions(
+        data=data, batcher=mu.Batcher, model=model, result_path=run_path,
+        batch_size=128, write_preds=True)
+
+    # Save embeddings to disk.
+    if torch.cuda.is_available():
+        learnt_embedding = model.embeddings.cpu()
+        learnt_embedding = learnt_embedding.weight.data.numpy()
+    else:
+        learnt_embedding = model.embeddings.weight.data.numpy()
+    print('learnt embeddings shape: {}'.format(learnt_embedding.shape))
+    evaluate.write_embeddings(embeddings=learnt_embedding, run_path=run_path)
 
 
 def main():
@@ -188,7 +199,7 @@ def main():
         run_saved_model(int_mapped_path=cl_args.int_mapped_path,
                         embedding_path=cl_args.embedding_path,
                         run_path=cl_args.run_path,
-                        use_toy=True)
+                        use_toy=False)
 
 if __name__ == '__main__':
     main()
