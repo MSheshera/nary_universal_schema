@@ -72,15 +72,15 @@ def make_predictions(data, batcher, model, result_path, batch_size,
     print('Train prediction time: {:.4f}s'.format(time.time() - start))
 
     if write_preds:
-        test_preds_file = os.path.join(result_path, 'test_preds.json')
+        test_preds_file = os.path.join(result_path, 'test')
         write_predictions(test_preds_file, doc_ids_test, probs_test,
                           col_hidden_test, row_hidden_test)
 
-        dev_preds_file = os.path.join(result_path, 'dev_preds.json')
+        dev_preds_file = os.path.join(result_path, 'dev')
         write_predictions(dev_preds_file, doc_ids_dev, probs_dev,
                           col_hidden_dev, row_hidden_dev)
 
-        train_preds_file = os.path.join(result_path, 'train_preds.jsob')
+        train_preds_file = os.path.join(result_path, 'train')
         write_predictions(train_preds_file, doc_ids_train, probs_train,
                           col_hidden_train, row_hidden_train)
 
@@ -89,12 +89,23 @@ def make_predictions(data, batcher, model, result_path, batch_size,
 
 def write_predictions(pred_file, doc_ids, probs, col_hidden, row_hidden):
     pred_dict = {}
-    with codecs.open(pred_file, 'w', 'utf') as fp:
+    with codecs.open(pred_file+'_probs.json', 'w', 'utf-8') as fp:
         for i, doc_id in enumerate(doc_ids):
-            pred_dict[doc_id] = {'prob': probs[i],
-                                 'col': list(col_hidden[i,:]), 'row': list(row_hidden[i,:])}
+            pred_dict[doc_id] = {'prob': float(probs[i])}
         json.dump(pred_dict, fp)
-    print('Wrote: {}'.format(pred_file))
+        print('Wrote: {}'.format(fp.name))
+    with open(pred_file + '_row_hidden.npy', 'w') as fp:
+        np.save(fp, row_hidden)
+        print('Wrote: {}'.format(fp.name))
+    with open(pred_file + '_col_hidden.npy', 'w') as fp:
+        np.save(fp, col_hidden)
+        print('Wrote: {}'.format(fp.name))
+
+
+def write_embeddings(embeddings, run_path):
+    with open(os.path.join(run_path, 'learnt_embeddings.npy'), 'w') as fp:
+        np.save(fp, embeddings)
+        print('Wrote: {}'.format(fp.name))
 
 if __name__ == '__main__':
     sys.stderr.write('Nothing to run.\n')
