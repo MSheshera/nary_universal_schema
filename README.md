@@ -1,12 +1,11 @@
 ### Description:
 N-ary relation extraction with Compositional Universal Schema.
+Report on findings of the project: http://bit.ly/2D8Utnh
 
 ### Descriptions of contents:
-`pre_process/*`: 
+`pre_process/*`: Code for entity tagging and pre-processing the data into a form needed by the model code.
 
-`misc_scripts/*`: Stuff that couldn't go anyplace else.
+`models/*`: Universal schema model with LSTMs to parameterize the rows and columns of the binary matrix.
 
-### Running this code:
-Find the project on gypsum here: `/mnt/nfs/work1/mccallum/smysore/nary_rel_extract`
-
-Find a log of things I'm up to here: [Google Doc](https://docs.google.com/document/d/1sfU0Z0Yp7P9vLQlz3ERDfY6VLAEGBza2zAJp-W3HGUk/edit?usp=sharing)
+### Running this code: 
+TODO
